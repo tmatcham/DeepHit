@@ -84,6 +84,8 @@ if not os.path.exists(in_path):
 
 FINAL1 = np.zeros([num_Event, len(EVAL_TIMES), OUT_ITERATION])
 FINAL2 = np.zeros([num_Event, len(EVAL_TIMES), OUT_ITERATION])
+FINAL3 = np.zeros([num_Event, len(EVAL_TIMES), OUT_ITERATION])  #Added results recording
+FINAL4 = np.zeros([num_Event, len(EVAL_TIMES), OUT_ITERATION])
 
 
 for out_itr in range(OUT_ITERATION):
@@ -166,6 +168,7 @@ for out_itr in range(OUT_ITERATION):
     
     ### EVALUATION
     result1, result2 = np.zeros([num_Event, len(EVAL_TIMES)]), np.zeros([num_Event, len(EVAL_TIMES)])
+    result3, result4 = np.zeros([num_Event, len(EVAL_TIMES)]), np.zeros([num_Event, len(EVAL_TIMES)])
 
     for t, t_time in enumerate(EVAL_TIMES):
         eval_horizon = int(t_time)
@@ -177,13 +180,15 @@ for out_itr in range(OUT_ITERATION):
             # calculate F(t | x, Y, t >= t_M) = \sum_{t_M <= \tau < t} P(\tau | x, Y, \tau > t_M)
             risk = np.sum(pred[:,:,:(eval_horizon+1)], axis=2) #risk score until EVAL_TIMES
             for k in range(num_Event):
-                # result1[k, t] = c_index(risk[:,k], te_time, (te_label[:,0] == k+1).astype(float), eval_horizon) #-1 for no event (not comparable)
-                # result2[k, t] = brier_score(risk[:,k], te_time, (te_label[:,0] == k+1).astype(float), eval_horizon) #-1 for no event (not comparable)
-                result1[k, t] = weighted_c_index(tr_time, (tr_label[:,0] == k+1).astype(int), risk[:,k], te_time, (te_label[:,0] == k+1).astype(int), eval_horizon) #-1 for no event (not comparable)
-                result2[k, t] = weighted_brier_score(tr_time, (tr_label[:,0] == k+1).astype(int), risk[:,k], te_time, (te_label[:,0] == k+1).astype(int), eval_horizon) #-1 for no event (not comparable)
+                result1[k, t] = c_index(risk[:,k], te_time, (te_label[:,0] == k+1).astype(float), eval_horizon) #-1 for no event (not comparable)
+                result2[k, t] = brier_score(risk[:,k], te_time, (te_label[:,0] == k+1).astype(float), eval_horizon) #-1 for no event (not comparable)
+                result3[k, t] = weighted_c_index(tr_time, (tr_label[:,0] == k+1).astype(int), risk[:,k], te_time, (te_label[:,0] == k+1).astype(int), eval_horizon) #-1 for no event (not comparable)
+                result4[k, t] = weighted_brier_score(tr_time, (tr_label[:,0] == k+1).astype(int), risk[:,k], te_time, (te_label[:,0] == k+1).astype(int), eval_horizon) #-1 for no event (not comparable)
 
     FINAL1[:, :, out_itr] = result1
     FINAL2[:, :, out_itr] = result2
+    FINAL3[:, :, out_itr] = result3
+    FINAL4[:, :, out_itr] = result4
 
     ### SAVE RESULTS
     row_header = []
@@ -192,9 +197,14 @@ for out_itr in range(OUT_ITERATION):
 
     col_header1 = []
     col_header2 = []
+    col_header3 = []
+    col_header4 = []
+
     for t in EVAL_TIMES:
         col_header1.append(str(t) + 'yr c_index')
         col_header2.append(str(t) + 'yr B_score')
+        col_header3.append(str(t) + 'yr c_index_weighted')
+        col_header4.append(str(t) + 'yr c_index_weighted')
 
     # c-index result
     df1 = pd.DataFrame(result1, index = row_header, columns=col_header1)
@@ -203,6 +213,14 @@ for out_itr in range(OUT_ITERATION):
     # brier-score result
     df2 = pd.DataFrame(result2, index = row_header, columns=col_header2)
     df2.to_csv(in_path + '/result_BRIER_itr' + str(out_itr) + '.csv')
+
+    # brier-score result
+    df3 = pd.DataFrame(result3, index = row_header, columns=col_header3)
+    df3.to_csv(in_path + '/result_WEIGHTED_BRIER_itr' + str(out_itr) + '.csv')
+
+    # brier-score result
+    df4 = pd.DataFrame(result4, index = row_header, columns=col_header4)
+    df4.to_csv(in_path + '/result_WEIGHTED_BRIER_itr' + str(out_itr) + '.csv')
 
     ### PRINT RESULTS
     print('========================================================')
@@ -214,7 +232,13 @@ for out_itr in range(OUT_ITERATION):
     print('- C-INDEX: ')
     print(df1)
     print('--------------------------------------------------------')
-    print('- BRIER-SCORE: ')
+    print('-BRIER-SCORE: ')
+    print(df2)
+    print('--------------------------------------------------------')
+    print('- WEIGHTED C-INDEX: ')
+    print(df1)
+    print('--------------------------------------------------------')
+    print('- WEIGHTED BRIER-SCORE: ')
     print(df2)
     print('========================================================')
 
@@ -233,6 +257,18 @@ df2_std  = pd.DataFrame(np.std(FINAL2, axis=2), index = row_header, columns=col_
 df2_mean.to_csv(in_path + '/result_BRIER_FINAL_MEAN.csv')
 df2_std.to_csv(in_path + '/result_BRIER_FINAL_STD.csv')
 
+# weighted c-index result
+df1_mean = pd.DataFrame(np.mean(FINAL3, axis=2), index = row_header, columns=col_header1)
+df1_std  = pd.DataFrame(np.std(FINAL3, axis=2), index = row_header, columns=col_header1)
+df1_mean.to_csv(in_path + '/result_WEIGHTED_CINDEX_FINAL_MEAN.csv')
+df1_std.to_csv(in_path + '/result_WEIGHTED_CINDEX_FINAL_STD.csv')
+
+# weighted brier-score result
+df2_mean = pd.DataFrame(np.mean(FINAL2, axis=2), index = row_header, columns=col_header2)
+df2_std  = pd.DataFrame(np.std(FINAL2, axis=2), index = row_header, columns=col_header2)
+df2_mean.to_csv(in_path + '/result_WEIGHTED_BRIER_FINAL_MEAN.csv')
+df2_std.to_csv(in_path + '/result_WEIGHTED_BRIER_FINAL_STD.csv')
+
 
 ### PRINT RESULTS
 print('========================================================')
@@ -241,4 +277,11 @@ print(df1_mean)
 print('--------------------------------------------------------')
 print('- FINAL BRIER-SCORE: ')
 print(df2_mean)
+print('--------------------------------------------------------')
+print('- FINAL WEIGHTED C-INDEX: ')
+print(df1_mean)
+print('--------------------------------------------------------')
+print('- FINAL WEIGHTED BRIER-SCORE: ')
+print(df2_mean)
+
 print('========================================================')

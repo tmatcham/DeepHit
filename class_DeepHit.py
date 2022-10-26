@@ -136,7 +136,7 @@ class Model_DeepHit:
             one_vector = tf.ones_like(self.t, dtype=tf.float32)
             I_2 = tf.cast(tf.equal(self.k, e+1), dtype = tf.float32) #indicator for event
             I_2 = tf.diag(tf.squeeze(I_2))
-            tmp_e = tf.reshape(tf.slice(self.out, [0, e, 0], [-1, 1, -1]), [-1, self.num_Category]) #event specific joint prob.
+            tmp_e = tf.reshape(tf.slice(self.out, [0, e, 0], [-1, 1, -1]) , [-1, self.num_Category]) #event specific joint prob.
 
             R = tf.matmul(tmp_e, tf.transpose(self.fc_mask2)) #no need to divide by each individual dominator
             # r_{ij} = risk of i-th pat based on j-th time-condition (last meas. time ~ event time) , i.e. r_i(T_{j})

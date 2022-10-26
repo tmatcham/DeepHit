@@ -38,8 +38,8 @@ def f_get_Normalization(X, norm_mode):
 '''
 def f_get_fc_mask2(time, label, num_Event, num_Category):
     '''
-        mask4 is required to get the log-likelihood loss
-        mask4 size is [N, num_Event, num_Category]
+        mask2 is required to get the log-likelihood loss
+        mask2 size is [N, num_Event, num_Category]
             if not censored : one element = 1 (0 elsewhere)
             if censored     : fill elements with 1 after the censoring time (for all events)
     '''
@@ -54,8 +54,8 @@ def f_get_fc_mask2(time, label, num_Event, num_Category):
 
 def f_get_fc_mask3(time, meas_time, num_Category):
     '''
-        mask5 is required calculate the ranking loss (for pair-wise comparision)
-        mask5 size is [N, num_Category].
+        mask3 is required calculate the ranking loss (for pair-wise comparision)
+        mask3 size is [N, num_Category].
         - For longitudinal measurements:
              1's from the last measurement to the event time (exclusive and inclusive, respectively)
              denom is not needed since comparing is done over the same denom
@@ -72,6 +72,27 @@ def f_get_fc_mask3(time, meas_time, num_Category):
         for i in range(np.shape(time)[0]):
             t = int(time[i, 0]) # censoring/event time
             mask[i,:(t+1)] = 1  #this excludes the last measurement time and includes the event time
+    return mask
+
+def f_get_fc_mask4(time, meas_time, num_Category):
+    '''
+        mask4 is required calculate the ranking loss (for pair-wise comparision) using the hazard as risk
+        mask4 size is [N, num_Category].
+        - For longitudinal measurements:
+             1's at event times only
+             denom is not needed since comparing is done over the same denom
+        - For single measurement:
+             1's at event time only
+    '''
+    mask = np.zeros([np.shape(time)[0], num_Category]) # for the first loss function
+    if np.shape(meas_time):  #lonogitudinal measurements
+        for i in range(np.shape(time)[0]):
+            t2 = int(time[i, 0]) # censoring/event time
+            mask[i,t2] = 1  #this excludes the last measurement time and includes the event time
+    else:                    #single measurement
+        for i in range(np.shape(time)[0]):
+            t = int(time[i, 0]) # censoring/event time
+            mask[i,t] = 1  #this excludes the last measurement time and includes the event time
     return mask
 
 
