@@ -16,7 +16,7 @@ import import_data as impt
 import utils_network as utils
 
 from class_DeepHit import Model_DeepHit
-from utils_eval import c_index, brier_score, weighted_c_index, weighted_brier_score
+from utils_eval import c_index, brier_score, weighted_c_index, weighted_brier_score, c_t_index
 
 
 def load_logging(filename):
@@ -184,6 +184,11 @@ for out_itr in range(OUT_ITERATION):
                 result2[k, t] = brier_score(risk[:,k], te_time, (te_label[:,0] == k+1).astype(float), eval_horizon) #-1 for no event (not comparable)
                 result3[k, t] = weighted_c_index(tr_time, (tr_label[:,0] == k+1).astype(int), risk[:,k], te_time, (te_label[:,0] == k+1).astype(int), eval_horizon) #-1 for no event (not comparable)
                 result4[k, t] = weighted_brier_score(tr_time, (tr_label[:,0] == k+1).astype(int), risk[:,k], te_time, (te_label[:,0] == k+1).astype(int), eval_horizon) #-1 for no event (not comparable)
+    risk2 = np.cumsum(pred[:,:,:], axis=2)
+    risk3 = pred
+    for k in range(num_Event):
+        c_index_td = c_t_index(risk2[:,:,k], te_time, (te_label[:,0] == k+1).astype(float), eval_horizon)
+        c_index_alpha = c_t_index(risk3[:,:,k], te_time, (te_label[:,0] == k+1).astype(float), eval_horizon)
 
     FINAL1[:, :, out_itr] = result1
     FINAL2[:, :, out_itr] = result2

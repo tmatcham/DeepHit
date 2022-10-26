@@ -44,41 +44,6 @@ def c_index(Prediction, Time_survival, Death, Time):
 
     return result
 
-### C_\alpha(t)-INDEX CALCULATION
-def c_index(Prediction, Time_survival, Death, Time):
-    '''
-        This is a cause-specific c(t)-index
-        - Prediction      : risk at Time (higher --> more risky)
-        - Time_survival   : survival/censoring time
-        - Death           :
-            > 1: death
-            > 0: censored (including death from other cause)
-        - Time            : time of evaluation (time-horizon when evaluating C-index)
-    '''
-    N = len(Prediction)
-    A = np.zeros((N, N))
-    Q = np.zeros((N, N))
-    N_t = np.zeros((N, N))
-    Num = 0
-    Den = 0
-    for i in range(N):
-        A[i, np.where(Time_survival[i] < Time_survival)] = 1
-        Q[i, np.where(Prediction[i] > Prediction)] = 1
-
-        if (Time_survival[i] <= Time and Death[i] == 1):
-            N_t[i, :] = 1
-
-    Num = np.sum(((A) * N_t) * Q)
-    Den = np.sum((A) * N_t)
-
-    if Num == 0 and Den == 0:
-        result = -1  # not able to compute c-index!
-    else:
-        result = float(Num / Den)
-
-    return result
-
-
 ### BRIER-SCORE
 def brier_score(Prediction, Time_survival, Death, Time):
     N = len(Prediction)
@@ -174,4 +139,41 @@ def weighted_brier_score(T_train, Y_train, Prediction, T_test, Y_test, Time):
 
     return np.mean(W*(Y_tilde - (1.-Prediction))**2)
 
+### C_\alpha(t)-INDEX CALCULATION
+def c_t_index(Prediction, Time_survival, Death, Time):
+    '''
+        This is a cause-specific c(t)-index
+        - Prediction      : risk at Time (higher --> more risky)
+        - Time_survival   : survival/censoring time
+        - Death           :
+            > 1: death
+            > 0: censored (including death from other cause)
+        - Time            : time of evaluation (time-horizon when evaluating C-index)
+    '''
+    N = Prediction.shape[0]
+    N_cat = Prediction.shape[1]
+    A = np.zeros((N, N))
+    Q_big = np.zeros((N, N, N_cat))
+    Q = np.zeros((N, N))
+    N_t = np.zeros((N, N))
+    Num = 0
+    Den = 0
+    for i in range(N):
+        A[i, np.where(Time_survival[i] < Time_survival)] = 1
+
+        Q_big[i,(Prediction[i] > Prediction)] = 1
+        Q[i, :] = [Q_big[i, j, int(Time_survival[i])] for j in range(N)]
+
+        if (Time_survival[i] <= Time and Death[i] == 1):
+            N_t[i, :] = 1
+
+    Num = np.sum(((A) * N_t) * Q)
+    Den = np.sum((A) * N_t)
+
+    if Num == 0 and Den == 0:
+        result = -1  # not able to compute c-index!
+    else:
+        result = float(Num / Den)
+
+    return result
 
