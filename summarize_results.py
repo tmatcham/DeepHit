@@ -49,7 +49,7 @@ def load_logging(filename):
 ##### MAIN SETTING
 OUT_ITERATION               = 5
 
-data_mode                   = 'SYNTHETIC' #METABRIC, SYNTHETIC
+data_mode                   = 'METABRIC' #METABRIC, SYNTHETIC
 seed                        = 1234
 
 EVAL_TIMES                  = [12, 24, 36] # evalution times (for C-index and Brier-Score)
@@ -64,10 +64,10 @@ EVAL_TIMES                  = [12, 24, 36] # evalution times (for C-index and Br
     mask1, mask2            = used for cause-specific network (FCNet structure)
 '''
 if data_mode == 'SYNTHETIC':
-    (x_dim), (data, time, label), (mask1, mask2) = impt.import_dataset_SYNTHETIC(norm_mode = 'standard')
+    (x_dim), (data, time, label), (mask1, mask2, mask3) = impt.import_dataset_SYNTHETIC(norm_mode = 'standard')
     EVAL_TIMES  = [12, 24, 36]
 elif data_mode == 'METABRIC':
-    (x_dim), (data, time, label), (mask1, mask2) = impt.import_dataset_METABRIC(norm_mode = 'standard')
+    (x_dim), (data, time, label), (mask1, mask2, mask3) = impt.import_dataset_METABRIC(norm_mode = 'standard')
     EVAL_TIMES  = [144, 288, 432]
 else:
     print('ERROR:  DATA_MODE NOT FOUND !!!')
@@ -155,10 +155,10 @@ for out_itr in range(OUT_ITERATION):
 
     ### TRAINING-TESTING SPLIT
     (tr_data,te_data, tr_time,te_time, tr_label,te_label, 
-     tr_mask1,te_mask1, tr_mask2,te_mask2)  = train_test_split(data, time, label, mask1, mask2, test_size=0.20, random_state=seed) 
+     tr_mask1,te_mask1, tr_mask2,te_mask2, tr_mask3,te_mask3)  = train_test_split(data, time, label, mask1, mask2, mask3, test_size=0.20, random_state=seed)
 
     (tr_data,va_data, tr_time,va_time, tr_label,va_label, 
-     tr_mask1,va_mask1, tr_mask2,va_mask2)  = train_test_split(tr_data, tr_time, tr_label, tr_mask1, tr_mask2, test_size=0.20, random_state=seed) 
+     tr_mask1,va_mask1, tr_mask2,va_mask2, tr_mask3,va_mask3)  = train_test_split(tr_data, tr_time, tr_label, tr_mask1, tr_mask2, tr_mask3, test_size=0.20, random_state=seed)
     
     ##### PREDICTION & EVALUATION
     saver.restore(sess, in_path + '/itr_' + str(out_itr) + '/models/model_itr_' + str(out_itr))

@@ -68,7 +68,7 @@ def get_random_hyperparameters(out_path):
 
     new_parser = {'mb_size': SET_BATCH_SIZE[np.random.randint(len(SET_BATCH_SIZE))],
 
-                 'iteration': 50000,
+                 'iteration': 2000, #50000,
 
                  'keep_prob': 0.6,
                  'lr_train': 1e-4,
@@ -114,17 +114,19 @@ seed                        = 1234
 
 '''
 if data_mode == 'SYNTHETIC':
-    (x_dim), (data, time, label), (mask1, mask2) = impt.import_dataset_SYNTHETIC(norm_mode = 'standard')
+    (x_dim), (data, time, label), (mask1, mask2, mask3) = impt.import_dataset_SYNTHETIC(norm_mode = 'standard')
     EVAL_TIMES = [12, 24, 36]
 elif data_mode == 'METABRIC':
-    (x_dim), (data, time, label), (mask1, mask2) = impt.import_dataset_METABRIC(norm_mode = 'standard')
+    (x_dim), (data, time, label), (mask1, mask2, mask3) = impt.import_dataset_METABRIC(norm_mode = 'standard')
     EVAL_TIMES = [144, 288, 432]
 else:
     print('ERROR:  DATA_MODE NOT FOUND !!!')
 
 
 DATA = (data, time, label)
-MASK = (mask1, mask2) #masks are required to calculate loss functions without for-loops.
+MASK_TD = (mask1, mask2, mask2) #masks are required to calculate loss functions without for-loops.
+MASK_CA = (mask1, mask3, mask2)
+
 
 out_path      = data_mode + '/results/'
 
@@ -133,8 +135,10 @@ for itr in range(OUT_ITERATION):
     if not os.path.exists(out_path + '/itr_' + str(itr) + '/'):
         os.makedirs(out_path + '/itr_' + str(itr) + '/')
 
-    max_valid = 0.
-    log_name = out_path + '/itr_' + str(itr) + '/hyperparameters_log.txt'
+    max_valid1 = 0.
+    max_valid2 = 0.
+    log_name1 = out_path + '/itr_' + str(itr) + '/hyperparameters_log_TD.txt'
+    log_name2 = out_path + '/itr_' + str(itr) + '/hyperparameters_log_CA.txt'
 
     for r_itr in range(RS_ITERATION):
         print('OUTER_ITERATION: ' + str(itr))
@@ -143,11 +147,17 @@ for itr in range(OUT_ITERATION):
         print(new_parser)
 
         # get validation performance given the hyperparameters
-        tmp_max = get_main.get_valid_performance(DATA, MASK, new_parser, itr, EVAL_TIMES, MAX_VALUE=max_valid)
+        tmp_max1 = get_main.get_valid_performance(DATA, MASK_TD, new_parser, itr, EVAL_TIMES, MAX_VALUE=max_valid)
+        tmp_max2 = get_main.get_valid_performance(DATA, MASK_CA, new_parser, itr, EVAL_TIMES, MAX_VALUE=max_valid)
 
-        if tmp_max > max_valid:
-            max_valid = tmp_max
-            max_parser = new_parser
-            save_logging(max_parser, log_name)  #save the hyperparameters if this provides the maximum validation performance
+        if tmp_max1 > max_valid1:
+            max_valid1 = tmp_max1
+            max_parser1 = new_parser
+            save_logging(max_parser1, log_name1)  #save the hyperparameters if this provides the maximum validation performance
+
+        if tmp_max2 > max_valid2:
+            max_valid2 = tmp_max2
+            max_parser2 = new_parser
+            save_logging(max_parser2, log_name2)  #save the hyperparameters if this provides the maximum validation performance
 
         print('Current best: ' + str(max_valid))

@@ -45,7 +45,7 @@ def log(x):
 def div(x, y):
     return tf.div(x, (y + 1e-8))
 
-def f_get_minibatch(mb_size, x, label, time, mask1, mask2):
+def f_get_minibatch(mb_size, x, label, time, mask1, mask2, mask3):
     idx = range(np.shape(x)[0])
     idx = random.sample(idx, mb_size)
 
@@ -54,13 +54,14 @@ def f_get_minibatch(mb_size, x, label, time, mask1, mask2):
     t_mb = time[idx, :].astype(np.float32)
     m1_mb = mask1[idx, :, :].astype(np.float32) #fc_mask
     m2_mb = mask2[idx, :].astype(np.float32) #fc_mask
-    return x_mb, k_mb, t_mb, m1_mb, m2_mb
+    m3_mb = mask3[idx, :].astype(np.float32)#fc_mask
+    return x_mb, k_mb, t_mb, m1_mb, m2_mb, m3_mb
 
 
 def get_valid_performance(DATA, MASK, in_parser, out_itr, eval_time=None, MAX_VALUE = -99, OUT_ITERATION=5, seed=1234):
     ##### DATA & MASK
-    (data, time, label)  = DATA
-    (mask1, mask2)       = MASK
+    (data, time, label)         = DATA
+    (mask1, mask2, mask3)       = MASK
 
     x_dim                       = np.shape(data)[1]
     _, num_Event, num_Category  = np.shape(mask1)  # dim of mask1: [subj, Num_Event, Num_Category]
@@ -123,11 +124,11 @@ def get_valid_performance(DATA, MASK, in_parser, out_itr, eval_time=None, MAX_VA
 
     ### TRAINING-TESTING SPLIT
     (tr_data,te_data, tr_time,te_time, tr_label,te_label, 
-     tr_mask1,te_mask1, tr_mask2,te_mask2)  = train_test_split(data, time, label, mask1, mask2, test_size=0.20, random_state=seed) 
+     tr_mask1,te_mask1, tr_mask2,te_mask2, tr_mask3, te_mask3)  = train_test_split(data, time, label, mask1, mask2, mask3, test_size=0.20, random_state=seed)
     
 
     (tr_data,va_data, tr_time,va_time, tr_label,va_label, 
-     tr_mask1,va_mask1, tr_mask2,va_mask2)  = train_test_split(tr_data, tr_time, tr_label, tr_mask1, tr_mask2, test_size=0.20, random_state=seed) 
+     tr_mask1,va_mask1, tr_mask2,va_mask2, tr_mask3, va_mask3)  = train_test_split(tr_data, tr_time, tr_label, tr_mask1, tr_mask2, tr_mask3, test_size=0.20, random_state=seed)
     
     max_valid = -99
     stop_flag = 0
@@ -145,9 +146,9 @@ def get_valid_performance(DATA, MASK, in_parser, out_itr, eval_time=None, MAX_VA
         if stop_flag > 5: #for faster early stopping
             break
         else:
-            x_mb, k_mb, t_mb, m1_mb, m2_mb = f_get_minibatch(mb_size, tr_data, tr_label, tr_time, tr_mask1, tr_mask2)
+            x_mb, k_mb, t_mb, m1_mb, m2_mb, m3_mb = f_get_minibatch(mb_size, tr_data, tr_label, tr_time, tr_mask1, tr_mask2, tr_mask3)
             DATA = (x_mb, k_mb, t_mb)
-            MASK = (m1_mb, m2_mb)
+            MASK = (m1_mb, m2_mb, m3_mb)
             PARAMETERS = (alpha, beta, gamma)
             _, loss_curr = model.train(DATA, MASK, PARAMETERS, keep_prob, lr_train)
             avg_loss += loss_curr/1000

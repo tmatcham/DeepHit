@@ -80,7 +80,8 @@ class Model_DeepHit:
             self.t           = tf.placeholder(tf.float32, shape=[None, 1], name='timetoevents')
 
             self.fc_mask1    = tf.placeholder(tf.float32, shape=[None, self.num_Event, self.num_Category], name='mask1')  #for Loss 1
-            self.fc_mask2    = tf.placeholder(tf.float32, shape=[None, self.num_Category], name='mask2')  #for Loss 2 / Loss 3
+            self.fc_mask2    = tf.placeholder(tf.float32, shape=[None, self.num_Category], name='mask2')  #for Loss 2
+            self.fc_mask3    = tf.placeholder(tf.float32, shape=[None, self.num_Category], name='mask3')  #for Loss 3
 
 
             ##### SHARED SUBNETWORK w/ FCNETS
@@ -168,7 +169,7 @@ class Model_DeepHit:
             I_2 = tf.cast(tf.equal(self.k, e+1), dtype = tf.float32) #indicator for event
             tmp_e = tf.reshape(tf.slice(self.out, [0, e, 0], [-1, 1, -1]), [-1, self.num_Category]) #event specific joint prob.
 
-            r = tf.reduce_sum(tmp_e * self.fc_mask2, axis=0) #no need to divide by each individual dominator
+            r = tf.reduce_sum(tmp_e * self.fc_mask3, axis=0) #no need to divide by each individual dominator
             tmp_eta = tf.reduce_mean((r - I_2)**2, reduction_indices=1, keep_dims=True)
 
             eta.append(tmp_eta)
@@ -180,19 +181,19 @@ class Model_DeepHit:
     
     def get_cost(self, DATA, MASK, PARAMETERS, keep_prob, lr_train):
         (x_mb, k_mb, t_mb) = DATA
-        (m1_mb, m2_mb) = MASK
+        (m1_mb, m2_mb, m3_mb) = MASK
         (alpha, beta, gamma) = PARAMETERS
         return self.sess.run(self.LOSS_TOTAL, 
-                             feed_dict={self.x:x_mb, self.k:k_mb, self.t:t_mb, self.fc_mask1: m1_mb, self.fc_mask2:m2_mb, 
+                             feed_dict={self.x:x_mb, self.k:k_mb, self.t:t_mb, self.fc_mask1: m1_mb, self.fc_mask2:m2_mb, self.fc_mask3:m3_mb,
                                         self.a:alpha, self.b:beta, self.c:gamma, 
                                         self.mb_size: np.shape(x_mb)[0], self.keep_prob:keep_prob, self.lr_rate:lr_train})
 
     def train(self, DATA, MASK, PARAMETERS, keep_prob, lr_train):
         (x_mb, k_mb, t_mb) = DATA
-        (m1_mb, m2_mb) = MASK
+        (m1_mb, m2_mb, m3_mb) = MASK
         (alpha, beta, gamma) = PARAMETERS
         return self.sess.run([self.solver, self.LOSS_TOTAL], 
-                             feed_dict={self.x:x_mb, self.k:k_mb, self.t:t_mb, self.fc_mask1: m1_mb, self.fc_mask2:m2_mb, 
+                             feed_dict={self.x:x_mb, self.k:k_mb, self.t:t_mb, self.fc_mask1: m1_mb, self.fc_mask2:m2_mb, self.fc_mask3:m3_mb,
                                         self.a:alpha, self.b:beta, self.c:gamma, 
                                         self.mb_size: np.shape(x_mb)[0], self.keep_prob:keep_prob, self.lr_rate:lr_train})
     
