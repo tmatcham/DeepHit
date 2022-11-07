@@ -153,7 +153,7 @@ def c_t_index(Prediction, Time_survival, Death, Time):
     N = Prediction.shape[0]
     N_cat = Prediction.shape[1]
     A = np.zeros((N, N))
-    Q_big = np.zeros((N, N, N_cat))
+    Q_big = np.zeros((N, N, N_cat) ,dtype = bool)
     Q = np.zeros((N, N))
     N_t = np.zeros((N, N))
     Num = 0

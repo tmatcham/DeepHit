@@ -87,168 +87,168 @@ FINAL2 = np.zeros([num_Event, len(EVAL_TIMES), OUT_ITERATION])
 FINAL3 = np.zeros([num_Event, len(EVAL_TIMES), OUT_ITERATION])  #Added results recording
 FINAL4 = np.zeros([num_Event, len(EVAL_TIMES), OUT_ITERATION])
 
+for extension in ['_CA', '_TD']:
+    print('Results'+extension)
+    for out_itr in range(OUT_ITERATION):
+        in_hypfile = in_path + '/itr_' + str(out_itr) + '/hyperparameters_log' + extension + '.txt'
+        in_parser = load_logging(in_hypfile)
 
-for out_itr in range(OUT_ITERATION):
-    in_hypfile = in_path + '/itr_' + str(out_itr) + '/hyperparameters_log.txt'
-    in_parser = load_logging(in_hypfile)
+        ##### HYPER-PARAMETERS
+        mb_size                     = in_parser['mb_size']
 
+        iteration                   = in_parser['iteration']
 
-    ##### HYPER-PARAMETERS
-    mb_size                     = in_parser['mb_size']
+        keep_prob                   = in_parser['keep_prob']
+        lr_train                    = in_parser['lr_train']
 
-    iteration                   = in_parser['iteration']
+        h_dim_shared                = in_parser['h_dim_shared']
+        h_dim_CS                    = in_parser['h_dim_CS']
+        num_layers_shared           = in_parser['num_layers_shared']
+        num_layers_CS               = in_parser['num_layers_CS']
 
-    keep_prob                   = in_parser['keep_prob']
-    lr_train                    = in_parser['lr_train']
-
-    h_dim_shared                = in_parser['h_dim_shared']
-    h_dim_CS                    = in_parser['h_dim_CS']
-    num_layers_shared           = in_parser['num_layers_shared']
-    num_layers_CS               = in_parser['num_layers_CS']
-
-    if in_parser['active_fn'] == 'relu':
-        active_fn                = tf.nn.relu
-    elif in_parser['active_fn'] == 'elu':
-        active_fn                = tf.nn.elu
-    elif in_parser['active_fn'] == 'tanh':
-        active_fn                = tf.nn.tanh
-    else:
-        print('Error!')
-
-
-    initial_W                   = tf.contrib.layers.xavier_initializer()
-
-    alpha                       = in_parser['alpha']  #for log-likelihood loss
-    beta                        = in_parser['beta']  #for ranking loss
-    gamma                       = in_parser['gamma']  #for RNN-prediction loss
-    parameter_name              = 'a' + str('%02.0f' %(10*alpha)) + 'b' + str('%02.0f' %(10*beta)) + 'c' + str('%02.0f' %(10*gamma))
-
-
-    ##### MAKE DICTIONARIES
-    # INPUT DIMENSIONS
-    input_dims                  = { 'x_dim'         : x_dim,
-                                    'num_Event'     : num_Event,
-                                    'num_Category'  : num_Category}
-
-    # NETWORK HYPER-PARMETERS
-    network_settings            = { 'h_dim_shared'         : h_dim_shared,
-                                    'h_dim_CS'          : h_dim_CS,
-                                    'num_layers_shared'    : num_layers_shared,
-                                    'num_layers_CS'    : num_layers_CS,
-                                    'active_fn'      : active_fn,
-                                    'initial_W'         : initial_W }
-
-
-    # for out_itr in range(OUT_ITERATION):
-    print ('ITR: ' + str(out_itr+1) + ' DATA MODE: ' + data_mode + ' (a:' + str(alpha) + ' b:' + str(beta) + ' c:' + str(gamma) + ')' )
-    ##### CREATE DEEPFHT NETWORK
-    tf.reset_default_graph()
-
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-    sess = tf.Session(config=config)
-
-    model = Model_DeepHit(sess, "DeepHit", input_dims, network_settings)
-    saver = tf.train.Saver()
-
-    sess.run(tf.global_variables_initializer())
-
-    ### TRAINING-TESTING SPLIT
-    (tr_data,te_data, tr_time,te_time, tr_label,te_label, 
-     tr_mask1,te_mask1, tr_mask2,te_mask2, tr_mask3,te_mask3)  = train_test_split(data, time, label, mask1, mask2, mask3, test_size=0.20, random_state=seed)
-
-    (tr_data,va_data, tr_time,va_time, tr_label,va_label, 
-     tr_mask1,va_mask1, tr_mask2,va_mask2, tr_mask3,va_mask3)  = train_test_split(tr_data, tr_time, tr_label, tr_mask1, tr_mask2, tr_mask3, test_size=0.20, random_state=seed)
-    
-    ##### PREDICTION & EVALUATION
-    saver.restore(sess, in_path + '/itr_' + str(out_itr) + '/models/model_itr_' + str(out_itr))
-
-    ### PREDICTION
-    pred = model.predict(te_data)
-    
-    ### EVALUATION
-    result1, result2 = np.zeros([num_Event, len(EVAL_TIMES)]), np.zeros([num_Event, len(EVAL_TIMES)])
-    result3, result4 = np.zeros([num_Event, len(EVAL_TIMES)]), np.zeros([num_Event, len(EVAL_TIMES)])
-
-    for t, t_time in enumerate(EVAL_TIMES):
-        eval_horizon = int(t_time)
-
-        if eval_horizon >= num_Category:
-            print( 'ERROR: evaluation horizon is out of range')
-            result1[:, t] = result2[:, t] = -1
+        if in_parser['active_fn'] == 'relu':
+            active_fn                = tf.nn.relu
+        elif in_parser['active_fn'] == 'elu':
+            active_fn                = tf.nn.elu
+        elif in_parser['active_fn'] == 'tanh':
+            active_fn                = tf.nn.tanh
         else:
-            # calculate F(t | x, Y, t >= t_M) = \sum_{t_M <= \tau < t} P(\tau | x, Y, \tau > t_M)
-            risk = np.sum(pred[:,:,:(eval_horizon+1)], axis=2) #risk score until EVAL_TIMES
-            for k in range(num_Event):
-                result1[k, t] = c_index(risk[:,k], te_time, (te_label[:,0] == k+1).astype(float), eval_horizon) #-1 for no event (not comparable)
-                result2[k, t] = brier_score(risk[:,k], te_time, (te_label[:,0] == k+1).astype(float), eval_horizon) #-1 for no event (not comparable)
-                result3[k, t] = weighted_c_index(tr_time, (tr_label[:,0] == k+1).astype(int), risk[:,k], te_time, (te_label[:,0] == k+1).astype(int), eval_horizon) #-1 for no event (not comparable)
-                result4[k, t] = weighted_brier_score(tr_time, (tr_label[:,0] == k+1).astype(int), risk[:,k], te_time, (te_label[:,0] == k+1).astype(int), eval_horizon) #-1 for no event (not comparable)
-    risk2 = np.cumsum(pred[:,:,:], axis=2)
-    risk3 = pred
-    for k in range(num_Event):
-        c_index_td = c_t_index(risk2[:,:,k], te_time, (te_label[:,0] == k+1).astype(float), eval_horizon)
-        c_index_alpha = c_t_index(risk3[:,:,k], te_time, (te_label[:,0] == k+1).astype(float), eval_horizon)
-
-    FINAL1[:, :, out_itr] = result1
-    FINAL2[:, :, out_itr] = result2
-    FINAL3[:, :, out_itr] = result3
-    FINAL4[:, :, out_itr] = result4
-
-    ### SAVE RESULTS
-    row_header = []
-    for t in range(num_Event):
-        row_header.append('Event_' + str(t+1))
-
-    col_header1 = []
-    col_header2 = []
-    col_header3 = []
-    col_header4 = []
-
-    for t in EVAL_TIMES:
-        col_header1.append(str(t) + 'yr c_index')
-        col_header2.append(str(t) + 'yr B_score')
-        col_header3.append(str(t) + 'yr c_index_weighted')
-        col_header4.append(str(t) + 'yr c_index_weighted')
-
-    # c-index result
-    df1 = pd.DataFrame(result1, index = row_header, columns=col_header1)
-    df1.to_csv(in_path + '/result_CINDEX_itr' + str(out_itr) + '.csv')
-
-    # brier-score result
-    df2 = pd.DataFrame(result2, index = row_header, columns=col_header2)
-    df2.to_csv(in_path + '/result_BRIER_itr' + str(out_itr) + '.csv')
-
-    # brier-score result
-    df3 = pd.DataFrame(result3, index = row_header, columns=col_header3)
-    df3.to_csv(in_path + '/result_WEIGHTED_BRIER_itr' + str(out_itr) + '.csv')
-
-    # brier-score result
-    df4 = pd.DataFrame(result4, index = row_header, columns=col_header4)
-    df4.to_csv(in_path + '/result_WEIGHTED_BRIER_itr' + str(out_itr) + '.csv')
-
-    ### PRINT RESULTS
-    print('========================================================')
-    print('ITR: ' + str(out_itr+1) + ' DATA MODE: ' + data_mode + ' (a:' + str(alpha) + ' b:' + str(beta) + ' c:' + str(gamma) + ')' )
-    print('SharedNet Parameters: ' + 'h_dim_shared = '+str(h_dim_shared) + ' num_layers_shared = '+str(num_layers_shared) + 'Non-Linearity: ' + str(active_fn))
-    print('CSNet Parameters: ' + 'h_dim_CS = '+str(h_dim_CS) + ' num_layers_CS = '+str(num_layers_CS) + 'Non-Linearity: ' + str(active_fn)) 
-
-    print('--------------------------------------------------------')
-    print('- C-INDEX: ')
-    print(df1)
-    print('--------------------------------------------------------')
-    print('-BRIER-SCORE: ')
-    print(df2)
-    print('--------------------------------------------------------')
-    print('- WEIGHTED C-INDEX: ')
-    print(df1)
-    print('--------------------------------------------------------')
-    print('- WEIGHTED BRIER-SCORE: ')
-    print(df2)
-    print('========================================================')
+            print('Error!')
 
 
-    
+        initial_W                   = tf.contrib.layers.xavier_initializer()
+
+        alpha                       = in_parser['alpha']  #for log-likelihood loss
+        beta                        = in_parser['beta']  #for ranking loss
+        gamma                       = in_parser['gamma']  #for RNN-prediction loss
+        parameter_name              = 'a' + str('%02.0f' %(10*alpha)) + 'b' + str('%02.0f' %(10*beta)) + 'c' + str('%02.0f' %(10*gamma))
+
+
+        ##### MAKE DICTIONARIES
+        # INPUT DIMENSIONS
+        input_dims                  = { 'x_dim'         : x_dim,
+                                        'num_Event'     : num_Event,
+                                        'num_Category'  : num_Category}
+
+        # NETWORK HYPER-PARMETERS
+        network_settings            = { 'h_dim_shared'         : h_dim_shared,
+                                        'h_dim_CS'          : h_dim_CS,
+                                        'num_layers_shared'    : num_layers_shared,
+                                        'num_layers_CS'    : num_layers_CS,
+                                        'active_fn'      : active_fn,
+                                        'initial_W'         : initial_W }
+
+
+        # for out_itr in range(OUT_ITERATION):
+        print ('ITR: ' + str(out_itr+1) + ' DATA MODE: ' + data_mode + ' (a:' + str(alpha) + ' b:' + str(beta) + ' c:' + str(gamma) + ')' )
+        ##### CREATE DEEPFHT NETWORK
+        tf.reset_default_graph()
+
+        config = tf.ConfigProto()
+        config.gpu_options.allow_growth = True
+        sess = tf.Session(config=config)
+
+        model = Model_DeepHit(sess, "DeepHit", input_dims, network_settings)
+        saver = tf.train.Saver()
+
+        sess.run(tf.global_variables_initializer())
+
+        ### TRAINING-TESTING SPLIT
+        (tr_data,te_data, tr_time,te_time, tr_label,te_label,
+         tr_mask1,te_mask1, tr_mask2,te_mask2, tr_mask3,te_mask3)  = train_test_split(data, time, label, mask1, mask2, mask3, test_size=0.20, random_state=seed)
+
+        (tr_data,va_data, tr_time,va_time, tr_label,va_label,
+         tr_mask1,va_mask1, tr_mask2,va_mask2, tr_mask3,va_mask3)  = train_test_split(tr_data, tr_time, tr_label, tr_mask1, tr_mask2, tr_mask3, test_size=0.20, random_state=seed)
+
+        ##### PREDICTION & EVALUATION
+        saver.restore(sess, in_path + '/itr_' + str(out_itr) + '/models/model_itr_' + str(out_itr))
+
+        ### PREDICTION
+        pred = model.predict(te_data)
+
+        ### EVALUATION
+        result1, result2 = np.zeros([num_Event, len(EVAL_TIMES)]), np.zeros([num_Event, len(EVAL_TIMES)])
+        result3, result4 = np.zeros([num_Event, len(EVAL_TIMES)]), np.zeros([num_Event, len(EVAL_TIMES)])
+
+        for t, t_time in enumerate(EVAL_TIMES):
+            eval_horizon = int(t_time)
+
+            if eval_horizon >= num_Category:
+                print( 'ERROR: evaluation horizon is out of range')
+                result1[:, t] = result2[:, t] = -1
+            else:
+                # calculate F(t | x, Y, t >= t_M) = \sum_{t_M <= \tau < t} P(\tau | x, Y, \tau > t_M)
+                risk = np.sum(pred[:,:,:(eval_horizon+1)], axis=2) #risk score until EVAL_TIMES
+                for k in range(num_Event):
+                    result1[k, t] = c_index(risk[:,k], te_time, (te_label[:,0] == k+1).astype(float), eval_horizon) #-1 for no event (not comparable)
+                    result2[k, t] = brier_score(risk[:,k], te_time, (te_label[:,0] == k+1).astype(float), eval_horizon) #-1 for no event (not comparable)
+                    result3[k, t] = weighted_c_index(tr_time, (tr_label[:,0] == k+1).astype(int), risk[:,k], te_time, (te_label[:,0] == k+1).astype(int), eval_horizon) #-1 for no event (not comparable)
+                    result4[k, t] = weighted_brier_score(tr_time, (tr_label[:,0] == k+1).astype(int), risk[:,k], te_time, (te_label[:,0] == k+1).astype(int), eval_horizon) #-1 for no event (not comparable)
+        risk2 = np.cumsum(pred[:,:,:], axis=2)
+        risk3 = pred
+        for k in range(num_Event):
+            c_index_td = c_t_index(risk2[:,k,:], te_time, (te_label[:,0] == k+1).astype(float), eval_horizon)
+            c_index_alpha = c_t_index(risk3[:,k,:], te_time, (te_label[:,0] == k+1).astype(float), eval_horizon)
+
+        FINAL1[:, :, out_itr] = result1
+        FINAL2[:, :, out_itr] = result2
+        FINAL3[:, :, out_itr] = result3
+        FINAL4[:, :, out_itr] = result4
+
+        ### SAVE RESULTS
+        row_header = []
+        for t in range(num_Event):
+            row_header.append('Event_' + str(t+1))
+
+        col_header1 = []
+        col_header2 = []
+        col_header3 = []
+        col_header4 = []
+
+        for t in EVAL_TIMES:
+            col_header1.append(str(t) + 'yr c_index')
+            col_header2.append(str(t) + 'yr B_score')
+            col_header3.append(str(t) + 'yr c_index_weighted')
+            col_header4.append(str(t) + 'yr c_index_weighted')
+
+        # c-index result
+        df1 = pd.DataFrame(result1, index = row_header, columns=col_header1)
+        df1.to_csv(in_path + '/result_CINDEX_itr' + str(out_itr) + '.csv')
+
+        # brier-score result
+        df2 = pd.DataFrame(result2, index = row_header, columns=col_header2)
+        df2.to_csv(in_path + '/result_BRIER_itr' + str(out_itr) + '.csv')
+
+        # brier-score result
+        df3 = pd.DataFrame(result3, index = row_header, columns=col_header3)
+        df3.to_csv(in_path + '/result_WEIGHTED_BRIER_itr' + str(out_itr) + '.csv')
+
+        # brier-score result
+        df4 = pd.DataFrame(result4, index = row_header, columns=col_header4)
+        df4.to_csv(in_path + '/result_WEIGHTED_BRIER_itr' + str(out_itr) + '.csv')
+
+        ### PRINT RESULTS
+        print('========================================================')
+        print('ITR: ' + str(out_itr+1) + ' DATA MODE: ' + data_mode + ' (a:' + str(alpha) + ' b:' + str(beta) + ' c:' + str(gamma) + ')' )
+        print('SharedNet Parameters: ' + 'h_dim_shared = '+str(h_dim_shared) + ' num_layers_shared = '+str(num_layers_shared) + 'Non-Linearity: ' + str(active_fn))
+        print('CSNet Parameters: ' + 'h_dim_CS = '+str(h_dim_CS) + ' num_layers_CS = '+str(num_layers_CS) + 'Non-Linearity: ' + str(active_fn))
+
+        print('--------------------------------------------------------')
+        print('- C-INDEX: ')
+        print(df1)
+        print('--------------------------------------------------------')
+        print('-BRIER-SCORE: ')
+        print(df2)
+        print('--------------------------------------------------------')
+        print('- WEIGHTED C-INDEX: ')
+        print(df1)
+        print('--------------------------------------------------------')
+        print('- WEIGHTED BRIER-SCORE: ')
+        print(df2)
+        print('========================================================')
+
+
+
 ### FINAL MEAN/STD
 # c-index result
 df1_mean = pd.DataFrame(np.mean(FINAL1, axis=2), index = row_header, columns=col_header1)
@@ -288,5 +288,4 @@ print(df1_mean)
 print('--------------------------------------------------------')
 print('- FINAL WEIGHTED BRIER-SCORE: ')
 print(df2_mean)
-
 print('========================================================')

@@ -68,7 +68,7 @@ def get_random_hyperparameters(out_path):
 
     new_parser = {'mb_size': SET_BATCH_SIZE[np.random.randint(len(SET_BATCH_SIZE))],
 
-                 'iteration': 2000, #50000,
+                 'iteration': 50000,
 
                  'keep_prob': 0.6,
                  'lr_train': 1e-4,
@@ -147,8 +147,8 @@ for itr in range(OUT_ITERATION):
         print(new_parser)
 
         # get validation performance given the hyperparameters
-        tmp_max1 = get_main.get_valid_performance(DATA, MASK_TD, new_parser, itr, EVAL_TIMES, MAX_VALUE=max_valid)
-        tmp_max2 = get_main.get_valid_performance(DATA, MASK_CA, new_parser, itr, EVAL_TIMES, MAX_VALUE=max_valid)
+        tmp_max1 = get_main.get_valid_performance(DATA, MASK_TD, new_parser, itr, EVAL_TIMES, MAX_VALUE=max_valid1)
+        tmp_max2 = get_main.get_valid_performance(DATA, MASK_CA, new_parser, itr, EVAL_TIMES, MAX_VALUE=max_valid2)
 
         if tmp_max1 > max_valid1:
             max_valid1 = tmp_max1
@@ -160,4 +160,5 @@ for itr in range(OUT_ITERATION):
             max_parser2 = new_parser
             save_logging(max_parser2, log_name2)  #save the hyperparameters if this provides the maximum validation performance
 
-        print('Current best: ' + str(max_valid))
+        print('Current best1: ' + str(max_valid1))
+        print('Current best2: ' + str(max_valid2))
