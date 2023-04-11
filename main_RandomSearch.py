@@ -6,7 +6,7 @@ INPUTS:
     - RS_ITERATION: # of random search iteration
     - data_mode: mode to select the time-to-event data from "import_data.py"
     - seed: random seed for training/testing/validation splits
-    - EVAL_TIMES: list of time-horizons at which the performance is maximized; 
+    - EVAL_TIMES: list of time-horizons at which the performance is maximized;
                   the validation is performed at given EVAL_TIMES (e.g., [12, 24, 36])
 
 OUTPUTS:
@@ -16,7 +16,7 @@ OUTPUTS:
 import time, datetime, os
 import get_main
 import numpy as np
-
+import copy
 import import_data as impt
 
 
@@ -49,28 +49,29 @@ def load_logging(filename):
                 else:
                     data[key] = value
             else:
-                pass # deal with bad lines of text here    
+                pass # deal with bad lines of text here
     return data
 
 
 # this randomly select hyperparamters based on the given list of candidates
 def get_random_hyperparameters(out_path):
     SET_BATCH_SIZE    = [32, 64, 128] #mb_size
- 
+
     SET_LAYERS        = [1,2,3,5] #number of layers
     SET_NODES         = [50, 100, 200, 300] #number of nodes
 
     SET_ACTIVATION_FN = ['relu', 'elu', 'tanh'] #non-linear activation functions
 
-    SET_ALPHA         = [0.1, 0.5, 1.0, 3.0, 5.0] #alpha values -> log-likelihood loss 
-    SET_BETA          = [0.1, 0.5, 1.0, 3.0, 5.0] #beta values -> ranking loss
+    SET_ALPHA         = [0.1, 0.5, 1.0, 3.0, 5.0] #alpha values -> log-likelihood loss
+    SET_BETA          = [0.01, 0.1, 1.0, 5.0, 10.0] #beta values -> ranking loss
     SET_GAMMA         = [0.1, 0.5, 1.0, 3.0, 5.0] #gamma values -> calibration loss
+    SET_DELTA         = [0.01, 0.1, 1.0, 5.0, 10.0] #delta values -> haz ranking loss
 
     new_parser = {'mb_size': SET_BATCH_SIZE[np.random.randint(len(SET_BATCH_SIZE))],
 
-                 'iteration': 50000,
+                 'iteration': 50000, #50000
 
-                 'keep_prob': 0.6,
+                 'keep_prob': 1.0, #0.6
                  'lr_train': 1e-4,
 
                  'h_dim_shared': SET_NODES[np.random.randint(len(SET_NODES))],
@@ -79,66 +80,62 @@ def get_random_hyperparameters(out_path):
                  'num_layers_CS':SET_LAYERS[np.random.randint(len(SET_LAYERS))],
                  'active_fn': SET_ACTIVATION_FN[np.random.randint(len(SET_ACTIVATION_FN))],
 
-                 'alpha':1.0, #default (set alpha = 1.0 and change beta and gamma)
-                 'beta':SET_BETA[np.random.randint(len(SET_BETA))],
-                 'gamma':0,   #default (no calibration loss)
+                 'alpha':1.0, #default (set alpha = 1.0 and change beta and gamma and delta)
+                 'beta': 0.0, #SET_BETA[np.random.randint(len(SET_BETA))],
+                 'gamma':0.,   #default (no calibration loss)
+                 'delta': 1.0,
                  # 'alpha':SET_ALPHA[np.random.randint(len(SET_ALPHA))],
                  # 'beta':SET_BETA[np.random.randint(len(SET_BETA))],
                  # 'gamma':SET_GAMMA[np.random.randint(len(SET_GAMMA))],
 
                  'out_path':out_path}
-    
+
     return new_parser #outputs the dictionary of the randomly-chosen hyperparamters
 
 
 
-
 ##### MAIN SETTING
-OUT_ITERATION               = 5
-RS_ITERATION                = 50
+OUT_ITERATION               = 1
+RS_ITERATION                = 10
 
-data_mode                   = 'METABRIC'
+data_mode                   = 'SYNTHETIC_CROSSING'
 seed                        = 1234
 
 
 ##### IMPORT DATASET
 '''
-    num_Category            = typically, max event/censoring time * 1.2 (to make enough time horizon)
-    num_Event               = number of evetns i.e. len(np.unique(label))-1
-    max_length              = maximum number of measurements
-    x_dim                   = data dimension including delta (num_features)
-    mask1, mask2            = used for cause-specific network (FCNet structure)
+    num_Category               = typically, max event/censoring time * 1.2 (to make enough time horizon)
+    num_Event                  = number of events i.e. len(np.unique(label))-1
+    max_length                 = maximum number of measurements
+    x_dim                      = data dimension including delta (num_features)
+    mask1, mask2, mask3        = used for cause-specific network (FCNet structure)
 
-    EVAL_TIMES              = set specific evaluation time horizons at which the validatoin performance is maximized. 
+    EVAL_TIMES                 = set specific evaluation time horizons at which the validation performance is maximized. 
     						  (This must be selected based on the dataset)
 
 '''
 if data_mode == 'SYNTHETIC':
     (x_dim), (data, time, label), (mask1, mask2, mask3) = impt.import_dataset_SYNTHETIC(norm_mode = 'standard')
-    EVAL_TIMES = [12, 24, 36]
+    EVAL_TIMES = [36]
 elif data_mode == 'METABRIC':
     (x_dim), (data, time, label), (mask1, mask2, mask3) = impt.import_dataset_METABRIC(norm_mode = 'standard')
-    EVAL_TIMES = [144, 288, 432]
+    EVAL_TIMES = [19]
+elif data_mode == 'SYNTHETIC_CROSSING':
+    (x_dim), (data, time, label), (mask1, mask2, mask3) = impt.import_dataset_SYNTHETIC_CROSSING(norm_mode = 'standard')
+    EVAL_TIMES = [10]
 else:
     print('ERROR:  DATA_MODE NOT FOUND !!!')
 
-
 DATA = (data, time, label)
-MASK_TD = (mask1, mask2, mask2) #masks are required to calculate loss functions without for-loops.
-MASK_CA = (mask1, mask3, mask2)
+MASK = (mask1, mask2, mask3) #masks are required to calculate loss functions without for-loops.
 
-
-out_path      = data_mode + '/results/'
-
+out_path     = data_mode + '/results_TD/'
 for itr in range(OUT_ITERATION):
-    
     if not os.path.exists(out_path + '/itr_' + str(itr) + '/'):
         os.makedirs(out_path + '/itr_' + str(itr) + '/')
 
-    max_valid1 = 0.
-    max_valid2 = 0.
-    log_name1 = out_path + '/itr_' + str(itr) + '/hyperparameters_log_TD.txt'
-    log_name2 = out_path + '/itr_' + str(itr) + '/hyperparameters_log_CA.txt'
+    max_valid = 0.
+    log_name = out_path + '/itr_' + str(itr) + '/hyperparameters.txt'
 
     for r_itr in range(RS_ITERATION):
         print('OUTER_ITERATION: ' + str(itr))
@@ -147,18 +144,14 @@ for itr in range(OUT_ITERATION):
         print(new_parser)
 
         # get validation performance given the hyperparameters
-        tmp_max1 = get_main.get_valid_performance(DATA, MASK_TD, new_parser, itr, EVAL_TIMES, MAX_VALUE=max_valid1)
-        tmp_max2 = get_main.get_valid_performance(DATA, MASK_CA, new_parser, itr, EVAL_TIMES, MAX_VALUE=max_valid2)
+        tmp_max = get_main.get_valid_performance(DATA, MASK, new_parser, itr, EVAL_TIMES, MAX_VALUE=max_valid, DH_ver = 'TD')
 
-        if tmp_max1 > max_valid1:
-            max_valid1 = tmp_max1
-            max_parser1 = new_parser
-            save_logging(max_parser1, log_name1)  #save the hyperparameters if this provides the maximum validation performance
+        if tmp_max > max_valid:
+            max_valid = tmp_max
+            max_parser = new_parser
+            save_logging(max_parser, log_name)  #save the hyperparameters if this provides the maximum validation performance
 
-        if tmp_max2 > max_valid2:
-            max_valid2 = tmp_max2
-            max_parser2 = new_parser
-            save_logging(max_parser2, log_name2)  #save the hyperparameters if this provides the maximum validation performance
+        print('Current best: ' + str(max_valid))
 
-        print('Current best1: ' + str(max_valid1))
-        print('Current best2: ' + str(max_valid2))
+
+

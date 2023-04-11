@@ -8,7 +8,7 @@ See equations and descriptions eq. (11) and (12) of the following paper:
 
 import numpy as np
 from lifelines import KaplanMeierFitter
-
+import copy
 
 ### C(t)-INDEX CALCULATION
 def c_index(Prediction, Time_survival, Death, Time):
@@ -150,6 +150,15 @@ def c_t_index(Prediction, Time_survival, Death, Time):
             > 0: censored (including death from other cause)
         - Time            : time of evaluation (time-horizon when evaluating C-index)
     '''
+
+
+    censor_ind = Time_survival > Time
+    Time_survival_copy = copy.copy(Time_survival)
+    Time_survival_copy[censor_ind] = Time
+    Death_copy = copy.copy(Death)
+    Death_copy[censor_ind[:,0]] = 0
+
+
     N = Prediction.shape[0]
     N_cat = Prediction.shape[1]
     A = np.zeros((N, N))
@@ -159,12 +168,12 @@ def c_t_index(Prediction, Time_survival, Death, Time):
     Num = 0
     Den = 0
     for i in range(N):
-        A[i, np.where(Time_survival[i] < Time_survival)] = 1
+        A[i, np.where(Time_survival_copy[i] < Time_survival_copy)] = 1
 
         Q_big[i,(Prediction[i] > Prediction)] = 1
-        Q[i, :] = [Q_big[i, j, int(Time_survival[i])] for j in range(N)]
+        Q[i, :] = [Q_big[i, j, int(Time_survival_copy[i])] for j in range(N)]
 
-        if (Time_survival[i] <= Time and Death[i] == 1):
+        if (Time_survival_copy[i] <= Time and Death_copy[i] == 1):
             N_t[i, :] = 1
 
     Num = np.sum(((A) * N_t) * Q)

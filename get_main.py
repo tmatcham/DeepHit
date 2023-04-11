@@ -3,7 +3,7 @@ This train DeepHit, and outputs the validation performance for random search.
 
 INPUTS:
     - DATA = (data, time, label)
-    - MASK = (mask1, mask2)
+    - MASK = (mask1, mask2 mask3)
     - in_parser: dictionary of hyperparameters
     - out_itr: the training/testing split indicator
     - eval_time: None or a list (e.g. [12, 24, 36]) at which the validation of the network is performed
@@ -16,7 +16,7 @@ OUTPUTS:
     - save the trained network in the folder directed by "in_parser['out_path'] + '/itr_' + str(out_itr)"
 '''
 
-_EPSILON = 1e-08
+_EPSILON = 1e-04
 
 
 import numpy as np
@@ -34,16 +34,16 @@ from sklearn.model_selection import train_test_split
 import utils_network as utils
 
 from class_DeepHit import Model_DeepHit
-from utils_eval import c_index, brier_score, weighted_c_index, weighted_brier_score
+from utils_eval import c_index, brier_score, weighted_c_index, weighted_brier_score, c_t_index
 
 
 
 ##### USER-DEFINED FUNCTIONS
 def log(x):
-    return tf.log(x + 1e-8)
+    return tf.log(x + _EPSILON)
 
 def div(x, y):
-    return tf.div(x, (y + 1e-8))
+    return tf.div(x, (y + _EPSILON))
 
 def f_get_minibatch(mb_size, x, label, time, mask1, mask2, mask3):
     idx = range(np.shape(x)[0])
@@ -53,15 +53,15 @@ def f_get_minibatch(mb_size, x, label, time, mask1, mask2, mask3):
     k_mb = label[idx, :].astype(np.float32) # censoring(0)/event(1,2,..) label
     t_mb = time[idx, :].astype(np.float32)
     m1_mb = mask1[idx, :, :].astype(np.float32) #fc_mask
-    m2_mb = mask2[idx, :].astype(np.float32) #fc_mask
-    m3_mb = mask3[idx, :].astype(np.float32)#fc_mask
+    m2_mb = mask2[idx, :].astype(np.float32)    #fc_mask
+    m3_mb = mask3[idx, :].astype(np.float32)    #fc_mask
     return x_mb, k_mb, t_mb, m1_mb, m2_mb, m3_mb
 
 
-def get_valid_performance(DATA, MASK, in_parser, out_itr, eval_time=None, MAX_VALUE = -99, OUT_ITERATION=5, seed=1234):
+def get_valid_performance(DATA, MASK, in_parser, out_itr, eval_time=None, MAX_VALUE = -99, DH_ver = 'TD', OUT_ITERATION=5, seed=1234):
     ##### DATA & MASK
     (data, time, label)         = DATA
-    (mask1, mask2, mask3)       = MASK
+    (mask1, mask2, mask3)= MASK
 
     x_dim                       = np.shape(data)[1]
     _, num_Event, num_Category  = np.shape(mask1)  # dim of mask1: [subj, Num_Event, Num_Category]
@@ -80,7 +80,8 @@ def get_valid_performance(DATA, MASK, in_parser, out_itr, eval_time=None, MAX_VA
     alpha                       = in_parser['alpha']  #for log-likelihood loss
     beta                        = in_parser['beta']  #for ranking loss
     gamma                       = in_parser['gamma']  #for RNN-prediction loss
-    parameter_name              = 'a' + str('%02.0f' %(10*alpha)) + 'b' + str('%02.0f' %(10*beta)) + 'c' + str('%02.0f' %(10*gamma))
+    delta                       = in_parser['delta']
+    parameter_name              = 'a' + str('%02.0f' %(10*alpha)) + 'b' + str('%02.0f' %(10*beta)) + 'c' + str('%02.0f' %(10*gamma)) +  'd' + str('%02.0f' %(10*delta))
 
     initial_W                   = tf.contrib.layers.xavier_initializer()
 
@@ -107,7 +108,7 @@ def get_valid_performance(DATA, MASK, in_parser, out_itr, eval_time=None, MAX_VA
         os.makedirs(file_path_final + '/models/')
 
 
-    print (file_path_final + ' (a:' + str(alpha) + ' b:' + str(beta) + ' c:' + str(gamma) + ')' )
+    print (file_path_final + ' (a:' + str(alpha) + ' b:' + str(beta) + ' c:' + str(gamma) + ' d:' + str(delta) + ')' )
 
     ##### CREATE DEEPFHT NETWORK
     tf.reset_default_graph()
@@ -124,11 +125,12 @@ def get_valid_performance(DATA, MASK, in_parser, out_itr, eval_time=None, MAX_VA
 
     ### TRAINING-TESTING SPLIT
     (tr_data,te_data, tr_time,te_time, tr_label,te_label, 
-     tr_mask1,te_mask1, tr_mask2,te_mask2, tr_mask3, te_mask3)  = train_test_split(data, time, label, mask1, mask2, mask3, test_size=0.20, random_state=seed)
+     tr_mask1,te_mask1, tr_mask2,te_mask2, tr_mask3, te_mask3)  =\
+        train_test_split(data, time, label, mask1, mask2, mask3, test_size=0.20, random_state=seed)
     
 
-    (tr_data,va_data, tr_time,va_time, tr_label,va_label, 
-     tr_mask1,va_mask1, tr_mask2,va_mask2, tr_mask3, va_mask3)  = train_test_split(tr_data, tr_time, tr_label, tr_mask1, tr_mask2, tr_mask3, test_size=0.20, random_state=seed)
+    (tr_data,va_data, tr_time,va_time, tr_label,va_label, tr_mask1,va_mask1, tr_mask2,va_mask2, tr_mask3, va_mask3)  =\
+        train_test_split(tr_data, tr_time, tr_label, tr_mask1, tr_mask2, tr_mask3, test_size=0.20, random_state=seed)
     
     max_valid = -99
     stop_flag = 0
@@ -149,7 +151,7 @@ def get_valid_performance(DATA, MASK, in_parser, out_itr, eval_time=None, MAX_VA
             x_mb, k_mb, t_mb, m1_mb, m2_mb, m3_mb = f_get_minibatch(mb_size, tr_data, tr_label, tr_time, tr_mask1, tr_mask2, tr_mask3)
             DATA = (x_mb, k_mb, t_mb)
             MASK = (m1_mb, m2_mb, m3_mb)
-            PARAMETERS = (alpha, beta, gamma)
+            PARAMETERS = (alpha, beta, gamma, delta)
             _, loss_curr = model.train(DATA, MASK, PARAMETERS, keep_prob, lr_train)
             avg_loss += loss_curr/1000
                 
@@ -170,14 +172,20 @@ def get_valid_performance(DATA, MASK, in_parser, out_itr, eval_time=None, MAX_VA
 
                     if eval_horizon >= num_Category:
                         print('ERROR: evaluation horizon is out of range')
-                        va_result1[:, t] = va_result2[:, t] = -1
+                        va_result1[:, t] = -1
                     else:
                         risk = np.sum(pred[:,:,:(eval_horizon+1)], axis=2) #risk score until eval_time
-                        for k in range(num_Event):
-                            va_result1[k, t] = c_index(risk[:,k], va_time, (va_label[:,0] == k+1).astype(int), eval_horizon) #-1 for no event (not comparable)
-                            # va_result1[k, t] = weighted_c_index(tr_time, (tr_label[:,0] == k+1).astype(int), risk[:,k], va_time, (va_label[:,0] == k+1).astype(int), eval_horizon)
-                tmp_valid = np.mean(va_result1)
+                        risk2 = np.cumsum(pred[:, :, :(eval_horizon+1)], axis=2) # cdf
+                        temp1 = np.concatenate((np.zeros((risk2.shape[0],1,1)), risk2),  axis= 2)
+                        temp1 = 1. - temp1
+                        temp1[temp1 <= 0] = _EPSILON
+                        risk3 = pred[:,:,:(eval_horizon+2)] / temp1 #estimate of hazard rate
 
+                        for k in range(num_Event):
+                            #va_result1[k, t] = c_index(risk[:,k], va_time, (va_label[:,0] == k+1).astype(int), eval_horizon) #-1 for no event (not comparable)
+                            #va_result1[k, t]  = c_t_index(risk2[:, k, :], va_time, (va_label[:, 0] == k + 1).astype(int), eval_horizon) # C_td
+                            va_result1[k, t]  = c_t_index(risk3[:, k, :], va_time, (va_label[:, 0] == k + 1).astype(int), eval_horizon) # C_alpha
+                tmp_valid = np.mean(va_result1)
 
                 if tmp_valid >  max_valid:
                     stop_flag = 0
@@ -188,5 +196,4 @@ def get_valid_performance(DATA, MASK, in_parser, out_itr, eval_time=None, MAX_VA
                         saver.save(sess, file_path_final + '/models/model_itr_' + str(out_itr))
                 else:
                     stop_flag += 1
-
     return max_valid

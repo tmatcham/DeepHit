@@ -28,7 +28,7 @@ from tensorflow.contrib.layers import fully_connected as FC_Net
 ### user-defined functions
 import utils_network as utils
 
-_EPSILON = 1e-08
+_EPSILON = 1e-04
 
 
 
@@ -74,13 +74,14 @@ class Model_DeepHit:
             self.a           = tf.placeholder(tf.float32, [], name='alpha')
             self.b           = tf.placeholder(tf.float32, [], name='beta')
             self.c           = tf.placeholder(tf.float32, [], name='gamma')
+            self.d           = tf.placeholder(tf.float32, [], name='delta')
 
             self.x           = tf.placeholder(tf.float32, shape=[None, self.x_dim], name='inputs')
             self.k           = tf.placeholder(tf.float32, shape=[None, 1], name='labels')     #event/censoring label (censoring:0)
             self.t           = tf.placeholder(tf.float32, shape=[None, 1], name='timetoevents')
 
             self.fc_mask1    = tf.placeholder(tf.float32, shape=[None, self.num_Event, self.num_Category], name='mask1')  #for Loss 1
-            self.fc_mask2    = tf.placeholder(tf.float32, shape=[None, self.num_Category], name='mask2')  #for Loss 2
+            self.fc_mask2    = tf.placeholder(tf.float32, shape=[None, self.num_Category], name='mask2')  #for Loss 2/3
             self.fc_mask3    = tf.placeholder(tf.float32, shape=[None, self.num_Category], name='mask3')  #for Loss 3
 
 
@@ -108,8 +109,9 @@ class Model_DeepHit:
             self.loss_Log_Likelihood()      #get loss1: Log-Likelihood loss
             self.loss_Ranking()             #get loss2: Ranking loss
             self.loss_Calibration()         #get loss3: Calibration loss
+            self.loss_Haz_Ranking()         #get loss4: Haz Ranking loss
 
-            self.LOSS_TOTAL = self.a*self.LOSS_1 + self.b*self.LOSS_2 + self.c*self.LOSS_3 + tf.losses.get_regularization_loss()
+            self.LOSS_TOTAL = self.a*self.LOSS_1 + self.b*self.LOSS_2 + self.c*self.LOSS_3 + self.d*self.LOSS_4 + tf.losses.get_regularization_loss()
             self.solver = tf.train.AdamOptimizer(learning_rate=self.lr_rate).minimize(self.LOSS_TOTAL)
 
 
@@ -155,13 +157,11 @@ class Model_DeepHit:
 
             eta.append(tmp_eta)
         eta = tf.stack(eta, axis=1) #stack referenced on subjects
-        eta = tf.reduce_mean(tf.reshape(eta, [-1, self.num_Event]), reduction_indices=1, keep_dims=True)
+        eta = tf.reduce_mean(tf.reshape(eta, [-1, self.num_Event]), reduction_indices=0, keep_dims=True)
 
         self.LOSS_2 = tf.reduce_sum(eta) #sum over num_Events
 
 
-
-    ### LOSS-FUNCTION 3 -- Calibration Loss
     def loss_Calibration(self):
         eta = []
         for e in range(self.num_Event):
@@ -169,7 +169,7 @@ class Model_DeepHit:
             I_2 = tf.cast(tf.equal(self.k, e+1), dtype = tf.float32) #indicator for event
             tmp_e = tf.reshape(tf.slice(self.out, [0, e, 0], [-1, 1, -1]), [-1, self.num_Category]) #event specific joint prob.
 
-            r = tf.reduce_sum(tmp_e * self.fc_mask3, axis=0) #no need to divide by each individual dominator
+            r = tf.reduce_sum(tmp_e * self.fc_mask2, axis=0) #no need to divide by each individual dominator
             tmp_eta = tf.reduce_mean((r - I_2)**2, reduction_indices=1, keep_dims=True)
 
             eta.append(tmp_eta)
@@ -178,23 +178,64 @@ class Model_DeepHit:
 
         self.LOSS_3 = tf.reduce_sum(eta) #sum over num_Events
 
-    
+    ### LOSS-FUNCTION 4 -- Haz Ranking loss
+    def loss_Haz_Ranking(self):
+
+        sigma1 = tf.constant(0.5, dtype=tf.float32) #best performance among (0.1,0.5,1)
+
+        eta = []
+        for e in range(self.num_Event):
+            one_vector = tf.ones_like(self.t, dtype=tf.float32)
+            zero_vector = tf.zeros_like(self.t, dtype=tf.float32)
+            I_2 = tf.cast(tf.equal(self.k, e + 1), dtype=tf.float32)  # indicator for event (0 if censor, 1 if event)
+            I_2 = tf.diag(tf.squeeze(I_2))  # Diagonal indicator function
+            tmp_e = tf.reshape(tf.slice(self.out, [0, e, 0], [-1, 1, -1]),
+                               [-1, self.num_Category])  # event specific joint prob.
+            tmp_e1 = tf.cumsum(tmp_e, 1)
+            tmp_e1 = tf.concat((zero_vector, tmp_e1), axis=1)
+            tmp_e1 = tf.slice(tmp_e1, [0, 0], [-1, self.num_Category])
+            tmp_e1 = 1.0 - tmp_e1
+            tmp_e1 = tf.math.maximum(tmp_e1, 0.0)
+            tmp_e2 = div(tmp_e, tmp_e1)  # hazard for each individual at each time step
+
+
+            R = tf.matmul(tmp_e2, tf.transpose(self.fc_mask3))  # no need to divide by each individual dominator
+            # r_{ij} = risk of i-th pat based on j-th time-condition (last meas. time ~ event time) , i.e. r_i(T_{j})
+
+            diag_R = tf.reshape(tf.diag_part(R), [-1, 1])
+            R = tf.matmul(one_vector, tf.transpose(diag_R)) - R  # R_{ij} = r_{j}(T_{j}) - r_{i}(T_{j})
+            R = tf.transpose(R)  # Now, R_{ij} (i-th row j-th column) = r_{i}(T_{i}) - r_{j}(T_{i})
+
+            T = tf.nn.relu(
+                tf.sign(tf.matmul(one_vector, tf.transpose(self.t)) - tf.matmul(self.t, tf.transpose(one_vector))))
+            # T_{ij}=1 if t_i < t_j  and T_{ij}=0 if t_i >= t_j
+
+            T = tf.matmul(I_2, T)  # only remains T_{ij}=1 when event occured for subject i
+
+            tmp_eta = tf.reduce_mean(T * tf.exp(-R / sigma1), reduction_indices=1, keep_dims=True)
+
+            eta.append(tmp_eta)
+        eta = tf.stack(eta, axis=1)  # stack referenced on subjects
+        eta = tf.reduce_mean(tf.reshape(eta, [-1, self.num_Event]), reduction_indices=0, keep_dims=True)
+
+        self.LOSS_4 = tf.reduce_sum(eta) #sum over num_Events
+
     def get_cost(self, DATA, MASK, PARAMETERS, keep_prob, lr_train):
         (x_mb, k_mb, t_mb) = DATA
         (m1_mb, m2_mb, m3_mb) = MASK
-        (alpha, beta, gamma) = PARAMETERS
+        (alpha, beta, gamma, delta) = PARAMETERS
         return self.sess.run(self.LOSS_TOTAL, 
                              feed_dict={self.x:x_mb, self.k:k_mb, self.t:t_mb, self.fc_mask1: m1_mb, self.fc_mask2:m2_mb, self.fc_mask3:m3_mb,
-                                        self.a:alpha, self.b:beta, self.c:gamma, 
+                                        self.a:alpha, self.b:beta, self.c:gamma, self.d:delta,
                                         self.mb_size: np.shape(x_mb)[0], self.keep_prob:keep_prob, self.lr_rate:lr_train})
 
     def train(self, DATA, MASK, PARAMETERS, keep_prob, lr_train):
         (x_mb, k_mb, t_mb) = DATA
         (m1_mb, m2_mb, m3_mb) = MASK
-        (alpha, beta, gamma) = PARAMETERS
+        (alpha, beta, gamma, delta) = PARAMETERS
         return self.sess.run([self.solver, self.LOSS_TOTAL], 
-                             feed_dict={self.x:x_mb, self.k:k_mb, self.t:t_mb, self.fc_mask1: m1_mb, self.fc_mask2:m2_mb, self.fc_mask3:m3_mb,
-                                        self.a:alpha, self.b:beta, self.c:gamma, 
+                             feed_dict={self.x:x_mb, self.k:k_mb, self.t:t_mb, self.fc_mask1: m1_mb, self.fc_mask2:m2_mb, self.fc_mask3: m3_mb,
+                                        self.a:alpha, self.b:beta, self.c:gamma, self.d:delta,
                                         self.mb_size: np.shape(x_mb)[0], self.keep_prob:keep_prob, self.lr_rate:lr_train})
     
     def predict(self, x_test, keep_prob=1.0):
