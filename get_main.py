@@ -183,8 +183,8 @@ def get_valid_performance(DATA, MASK, in_parser, out_itr, eval_time=None, MAX_VA
 
                         for k in range(num_Event):
                             #va_result1[k, t] = c_index(risk[:,k], va_time, (va_label[:,0] == k+1).astype(int), eval_horizon) #-1 for no event (not comparable)
-                            #va_result1[k, t]  = c_t_index(risk2[:, k, :], va_time, (va_label[:, 0] == k + 1).astype(int), eval_horizon) # C_td
-                            va_result1[k, t]  = c_t_index(risk3[:, k, :], va_time, (va_label[:, 0] == k + 1).astype(int), eval_horizon) # C_alpha
+                            va_result1[k, t]  = c_t_index(risk2[:, k, :], va_time, (va_label[:, 0] == k + 1).astype(int), eval_horizon) # C_td
+                            #va_result1[k, t]  = c_t_index(risk3[:, k, :], va_time, (va_label[:, 0] == k + 1).astype(int), eval_horizon) # C_alpha
                 tmp_valid = np.mean(va_result1)
 
                 if tmp_valid >  max_valid:

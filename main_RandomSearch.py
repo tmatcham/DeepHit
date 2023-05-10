@@ -63,15 +63,15 @@ def get_random_hyperparameters(out_path):
     SET_ACTIVATION_FN = ['relu', 'elu', 'tanh'] #non-linear activation functions
 
     SET_ALPHA         = [0.1, 0.5, 1.0, 3.0, 5.0] #alpha values -> log-likelihood loss
-    SET_BETA          = [0.01, 0.1, 1.0, 5.0, 10.0] #beta values -> ranking loss
+    SET_BETA          = [0.1, 0.5, 1.0, 3.0, 5.0] #beta values -> ranking loss
     SET_GAMMA         = [0.1, 0.5, 1.0, 3.0, 5.0] #gamma values -> calibration loss
-    SET_DELTA         = [0.01, 0.1, 1.0, 5.0, 10.0] #delta values -> haz ranking loss
+    SET_DELTA         = [0.1, 0.5, 1.0, 3.0, 5.0] #delta values -> haz ranking loss
 
     new_parser = {'mb_size': SET_BATCH_SIZE[np.random.randint(len(SET_BATCH_SIZE))],
 
                  'iteration': 50000, #50000
 
-                 'keep_prob': 1.0, #0.6
+                 'keep_prob': 1.0,
                  'lr_train': 1e-4,
 
                  'h_dim_shared': SET_NODES[np.random.randint(len(SET_NODES))],
@@ -81,9 +81,9 @@ def get_random_hyperparameters(out_path):
                  'active_fn': SET_ACTIVATION_FN[np.random.randint(len(SET_ACTIVATION_FN))],
 
                  'alpha':1.0, #default (set alpha = 1.0 and change beta and gamma and delta)
-                 'beta': 0.0, #SET_BETA[np.random.randint(len(SET_BETA))],
+                 'beta': 1.0, #SET_BETA[np.random.randint(len(SET_BETA))],
                  'gamma':0.,   #default (no calibration loss)
-                 'delta': 1.0,
+                 'delta': 0.0,
                  # 'alpha':SET_ALPHA[np.random.randint(len(SET_ALPHA))],
                  # 'beta':SET_BETA[np.random.randint(len(SET_BETA))],
                  # 'gamma':SET_GAMMA[np.random.randint(len(SET_GAMMA))],
@@ -96,7 +96,7 @@ def get_random_hyperparameters(out_path):
 
 ##### MAIN SETTING
 OUT_ITERATION               = 1
-RS_ITERATION                = 10
+RS_ITERATION                = 20
 
 data_mode                   = 'SYNTHETIC_CROSSING'
 seed                        = 1234

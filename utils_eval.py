@@ -152,7 +152,7 @@ def c_t_index(Prediction, Time_survival, Death, Time):
     '''
 
 
-    censor_ind = Time_survival > Time
+    censor_ind = Time_survival >= Time
     Time_survival_copy = copy.copy(Time_survival)
     Time_survival_copy[censor_ind] = Time
     Death_copy = copy.copy(Death)
@@ -163,20 +163,24 @@ def c_t_index(Prediction, Time_survival, Death, Time):
     N_cat = Prediction.shape[1]
     A = np.zeros((N, N))
     Q_big = np.zeros((N, N, N_cat) ,dtype = bool)
+    Q_big_half = np.zeros((N, N, N_cat) ,dtype = bool)
     Q = np.zeros((N, N))
+    Q_half = np.zeros((N, N))
     N_t = np.zeros((N, N))
     Num = 0
     Den = 0
     for i in range(N):
-        A[i, np.where(Time_survival_copy[i] < Time_survival_copy)] = 1
-
+        A[i, np.where(Time_survival_copy[i] <= Time_survival_copy)[0]] = 1
+        A[i,i] = 0
         Q_big[i,(Prediction[i] > Prediction)] = 1
         Q[i, :] = [Q_big[i, j, int(Time_survival_copy[i])] for j in range(N)]
 
+        Q_big_half[i,(Prediction[i] == Prediction)] = 1
+        Q_half[i, :] = [Q_big_half[i, j, int(Time_survival_copy[i])] for j in range(N)]
         if (Time_survival_copy[i] <= Time and Death_copy[i] == 1):
             N_t[i, :] = 1
 
-    Num = np.sum(((A) * N_t) * Q)
+    Num = np.sum(((A) * N_t) * Q) + 0.5*np.sum(((A) * N_t) * Q_half)
     Den = np.sum((A) * N_t)
 
     if Num == 0 and Den == 0:

@@ -132,7 +132,7 @@ class Model_DeepHit:
 
     ### LOSS-FUNCTION 2 -- Ranking loss
     def loss_Ranking(self):
-        sigma1 = tf.constant(0.1, dtype=tf.float32)
+        sigma1 = tf.constant(0.01, dtype=tf.float32)
 
         eta = []
         for e in range(self.num_Event):
@@ -148,16 +148,24 @@ class Model_DeepHit:
             R = tf.matmul(one_vector, tf.transpose(diag_R)) - R # R_{ij} = r_{j}(T_{j}) - r_{i}(T_{j})
             R = tf.transpose(R)                                 # Now, R_{ij} (i-th row j-th column) = r_{i}(T_{i}) - r_{j}(T_{i})
 
-            T = tf.nn.relu(tf.sign(tf.matmul(one_vector, tf.transpose(self.t)) - tf.matmul(self.t, tf.transpose(one_vector))))
+            #T = tf.nn.relu(tf.sign(tf.matmul(one_vector, tf.transpose(self.t)) - tf.matmul(self.t, tf.transpose(one_vector))))
             # T_{ij}=1 if t_i < t_j  and T_{ij}=0 if t_i >= t_j
+
+            T_diff = (tf.matmul(one_vector, tf.transpose(self.t)) - tf.matmul(self.t, tf.transpose(one_vector)))
+            one_matrix = tf.ones_like(T_diff, dtype =tf.float32)
+            T = tf.sign(tf.sign(T_diff) + one_matrix)
+            # T_{ij}=1 if t_i <= t_j  and T_{ij}=0 if t_i > t_j
+            T = T - tf.eye(tf.shape(T)[0])  # Set diagonal to 0
+
+
 
             T = tf.matmul(I_2, T) # only remains T_{ij}=1 when event occured for subject i
 
-            tmp_eta = tf.reduce_mean(T * tf.exp(-R/sigma1), reduction_indices=1, keep_dims=True)
+            tmp_eta = tf.reduce_mean(T * tf.sigmoid(-R/sigma1), reduction_indices=1, keep_dims=True)
 
             eta.append(tmp_eta)
         eta = tf.stack(eta, axis=1) #stack referenced on subjects
-        eta = tf.reduce_mean(tf.reshape(eta, [-1, self.num_Event]), reduction_indices=0, keep_dims=True)
+        eta = tf.reduce_mean(tf.reshape(eta, [-1, self.num_Event]), reduction_indices=1, keep_dims=True)
 
         self.LOSS_2 = tf.reduce_sum(eta) #sum over num_Events
 
@@ -181,7 +189,7 @@ class Model_DeepHit:
     ### LOSS-FUNCTION 4 -- Haz Ranking loss
     def loss_Haz_Ranking(self):
 
-        sigma1 = tf.constant(0.5, dtype=tf.float32) #best performance among (0.1,0.5,1)
+        sigma1 = tf.constant(0.01, dtype=tf.float32) #best performance among (0.1,0.5,1)
 
         eta = []
         for e in range(self.num_Event):
@@ -206,17 +214,21 @@ class Model_DeepHit:
             R = tf.matmul(one_vector, tf.transpose(diag_R)) - R  # R_{ij} = r_{j}(T_{j}) - r_{i}(T_{j})
             R = tf.transpose(R)  # Now, R_{ij} (i-th row j-th column) = r_{i}(T_{i}) - r_{j}(T_{i})
 
-            T = tf.nn.relu(
-                tf.sign(tf.matmul(one_vector, tf.transpose(self.t)) - tf.matmul(self.t, tf.transpose(one_vector))))
-            # T_{ij}=1 if t_i < t_j  and T_{ij}=0 if t_i >= t_j
+            #T = tf.nn.relu(
+            #    tf.sign(tf.matmul(one_vector, tf.transpose(self.t)) - tf.matmul(self.t, tf.transpose(one_vector))))
+            T_diff = (tf.matmul(one_vector, tf.transpose(self.t)) - tf.matmul(self.t, tf.transpose(one_vector)))
+            one_matrix = tf.ones_like(T_diff, dtype =tf.float32)
+            T = tf.sign(tf.sign(T_diff) + one_matrix)
+            # T_{ij}=1 if t_i <= t_j  and T_{ij}=0 if t_i > t_j
+            T = T - tf.eye(tf.shape(T)[0])  # Set diagonal to 0
 
             T = tf.matmul(I_2, T)  # only remains T_{ij}=1 when event occured for subject i
 
-            tmp_eta = tf.reduce_mean(T * tf.exp(-R / sigma1), reduction_indices=1, keep_dims=True)
+            tmp_eta = tf.reduce_mean(T * tf.sigmoid(-R / sigma1), reduction_indices=1, keep_dims=True)
 
             eta.append(tmp_eta)
         eta = tf.stack(eta, axis=1)  # stack referenced on subjects
-        eta = tf.reduce_mean(tf.reshape(eta, [-1, self.num_Event]), reduction_indices=0, keep_dims=True)
+        eta = tf.reduce_mean(tf.reshape(eta, [-1, self.num_Event]), reduction_indices=1, keep_dims=True)
 
         self.LOSS_4 = tf.reduce_sum(eta) #sum over num_Events
 

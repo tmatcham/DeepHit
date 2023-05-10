@@ -204,7 +204,7 @@ for out_itr in range(OUT_ITERATION):
     plt.xlabel('t')
     #plt.ylabel(r'$\alpha(t\vert z)$')
     plt.legend(loc='upper left')
-    plt.savefig('images/beta_'+str(in_parser['beta']) + '_delta_' + str(in_parser['delta']) + '_' + str(out_itr) + '.pdf')
+    plt.savefig('images/beta_'+str(in_parser['beta']) + '_delta_' + str(in_parser['delta']) + '_' + str(out_itr) + '2.pdf')
     plt.close()
 
     #Now visualise the cumulative hazards
@@ -229,5 +229,5 @@ for out_itr in range(OUT_ITERATION):
     plt.show()
 
     plt.legend(loc='upper left')
-    plt.savefig('images/cum_beta_'+str(in_parser['beta']) + '_delta_' + str(in_parser['delta']) +'_' +str(out_itr)+ '.pdf')
+    plt.savefig('images/cum_beta_'+str(in_parser['beta']) + '_delta_' + str(in_parser['delta']) +'_' +str(out_itr)+ '2.pdf')
     plt.close()
